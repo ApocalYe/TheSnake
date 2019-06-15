@@ -1,13 +1,14 @@
 #include "Game.h"
-#include "Snake.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <cassert>
+#include <random>
 
 using namespace std;
 
 
-Game::Game(int width, int height, int init_game_speed, int init_snake_length) :width(width), height(height), game_speed(init_game_speed), playing(false), snake(Snake(init_snake_length, width, height)), food(&snake, width, height)
+Game::Game(int width, int height, int init_game_speed, int init_snake_length) :width(width), height(height), game_speed(init_game_speed), playing(false), snake(Snake(*this, init_snake_length)), food(*this)
 {
 	//获取默认标准显示缓冲区句柄
 	hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -60,7 +61,10 @@ void Game::display(int invert)
 					cout << "□";
 				break;
 			case 2:
-				cout << "★";
+				if (!invert)
+					cout << "★";
+				else
+					cout << "☆";
 				break;
 			}
 		}
@@ -92,8 +96,7 @@ void Game::refresh()
 	}
 	snake.go(current_direction);
 	if (food.eaten()) {
-		food.~Food();
-		food = Food(&snake, width, height);
+		food.init();
 		score+=snake.getLength();
 		cout << "Score: " << score << endl;
 		game_speed++;
@@ -143,4 +146,162 @@ void Game::gameOver() {
 	}
 	cout << "Score: " << score << endl;
 	cout << "Game over! " << endl;
+}
+
+
+
+
+
+Game::Snake::Snake(Game& parent, int init_length) :parent(parent)
+{
+	assert(init_length > 0);
+	length = 0;
+	current_index = 0;
+	current_pt = 0;
+	head_pt = 0;
+	tail_pt = 0;
+	while (length < init_length) {
+		createBodyBlock(length, (parent.height + 1) / 2 - 1);
+	}
+}
+
+
+Game::Snake::~Snake()
+{
+	BodyBlock* next_block, * this_block;
+	this_block = tail_pt;
+	while (length > 0) {
+		next_block = this_block->pointer_to_next;
+		delete this_block;
+		this_block = next_block;
+		length--;
+	}
+}
+
+int Game::Snake::x(int index)
+{
+	assert(index < length);
+	if (current_index > index) {
+		current_pt = tail_pt;
+		current_index = 0;
+	}
+	while (current_index < index) {
+		current_pt = current_pt->pointer_to_next;
+		current_index++;
+	}
+	return current_pt->x;
+}
+
+
+int Game::Snake::y(int index)
+{
+	if (index < current_index) {
+		current_pt = tail_pt;
+		current_index = 0;
+	}
+	while (index > current_index) {
+		current_pt = current_pt->pointer_to_next;
+		current_index++;
+	}
+	return current_pt->y;
+}
+
+int Game::Snake::getLength() const
+{
+	return length;
+}
+
+
+void Game::Snake::createBodyBlock(int x, int y) {
+	BodyBlock* pt_new_body_block = new BodyBlock();
+	pt_new_body_block->pointer_to_next = 0;
+	pt_new_body_block->x = x;
+	pt_new_body_block->y = y;
+	if (length != 0) {
+		head_pt->pointer_to_next = pt_new_body_block;
+	}
+	else {
+		tail_pt = pt_new_body_block;
+		current_pt = tail_pt;
+	}
+	head_pt = pt_new_body_block;
+	length++;
+}
+
+void Game::Snake::deleteTail()
+{
+	BodyBlock* new_tail = tail_pt->pointer_to_next;
+	delete tail_pt;
+	tail_pt = new_tail;
+	current_pt = tail_pt;
+	current_index = 0;
+	length--;
+}
+
+void Game::Snake::go(Direction direction) {
+	int next_x = -1, next_y = -1;
+	switch (direction) {
+	case UP:
+		next_x = head_pt->x;
+		next_y = (head_pt->y - 1 + parent.height) % parent.height;
+		break;
+	case DOWN:
+		next_x = head_pt->x;
+		next_y = (head_pt->y + 1) % parent.height;
+		break;
+	case LEFT:
+		next_x = (head_pt->x - 1 + parent.width) % parent.width;
+		next_y = head_pt->y;
+		break;
+	case RIGHT:
+		next_x = (head_pt->x + 1) % parent.width;
+		next_y = head_pt->y;
+		break;
+	}
+	assert(next_x >= 0);
+	assert(next_y >= 0);
+	createBodyBlock(next_x, next_y);
+}
+
+bool Game::Snake::detectCrash() {
+	for (int index1 = 0; index1 < length; index1++) {
+		for (int index2 = index1 + 1; index2 < length; index2++) {
+			if ((x(index1) == x(index2)) && (y(index1) == y(index2))) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+void Game::Food::init() {
+	bool usable = false;
+	do
+	{
+		food_x = std::rand() % parent.width;
+		food_y = std::rand() % parent.height;
+		usable = !eaten();
+	} while (!usable);
+}
+
+Game::Food::Food(Game& parent) : parent(parent)
+{
+	init();
+}
+
+
+Game::Food::~Food()
+{
+}
+
+bool Game::Food::eaten()
+{
+	int snake_length = parent.snake.getLength();
+	for (int index = 0; index < snake_length; index++) {
+		if ((parent.snake.x(index) == food_x) && (parent.snake.y(index) == food_y)) {
+			return true;
+		}
+	}
+	return false;
 }
