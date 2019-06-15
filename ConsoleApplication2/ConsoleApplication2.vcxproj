@@ -153,14 +153,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="TheSnake.cpp" />
-    <ClCompile Include="Food.cpp" />
     <ClCompile Include="Game.cpp" />
-    <ClCompile Include="Snake.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Food.h" />
     <ClInclude Include="Game.h" />
-    <ClInclude Include="Snake.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />
